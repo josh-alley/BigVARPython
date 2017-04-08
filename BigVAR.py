@@ -40,12 +40,13 @@ class BigVAR:
         if len(gran) != 2 and not own_lambdas: raise ValueError('granularity must have two parameters')
         if gran[0] <=0 or gran[1] <= 0: raise ValueError('granularity parameters must be positive')
 
+        # TODO verify this step
         if len(VARX) != 0:
             k = VARX.shape[1]
             if k > Y.shape[1]: raise ValueError('k is greater than the number of columns in Y')
         else: k = Y.shape[1]
         self.m = Y.shape[1] - k
-        self.n_series = Y.shape[1] - (m if m < Y.shape[1] else 0)
+        self.n_series = Y.shape[1] - (self.m if self.m < Y.shape[1] else 0)
         self.tf = (p == 0)
         if self.n_series == 1 and struct not in ['Basic', 'Lag', 'HVARC']:
             raise ValueError('Univariate support is only available for Lasso, Lag Group, and Componentwise HVAR')
@@ -67,6 +68,7 @@ class BigVAR:
 
         self.Y = Y
         self.p = p
+        self.struct = struct
         self.gran = gran
         self.T1 = T1
         self.T2 = T2
@@ -83,5 +85,55 @@ class BigVAR:
         self.recursive = recursive
         self.dates = dates
 
+def cross_validate(bv):
 
-x = BigVAR(np.matrix([range(2), range(1,3)]), 1, 'Basic', [10,2], None, None)
+    if len(bv.alpha) == 0:
+        if len(bv.VARX) > 0:
+            alpha = 1/(bv.VARX/(bv.k) + 1)
+        else:
+            alpha = 1/(bv.k + 1)
+
+    dual = len(bv.alpha > 1) and bv.struct in ['SparseLag', 'SparseOO']
+    jj = 0
+    T1 = bv.T1 if bv.cv == 'Rolling' else bv.p + 2
+    T2 = bv.T2
+    s = bv.VARX[['s']] if len(bv.VARX) != 0 else 0
+    if bv.own_lambdas:
+        gamm = bv.gran
+        gran2 = len(gamm)
+    ONESE = bv.ONESE
+
+    if (bv.cv == 'Rolling'):
+        T1 = T1 - np.max(bv.p, s)
+        T2 = T2 - np.max(bv.p, s)
+    if not bv.own_lambdas:
+        gran2 = bv.gran[1]
+        gran1 = bv.gran[0]
+
+    # constructing a lag matrix in VARX setting
+    if len(bv.VARX) != 0:
+        VARX = True
+        k1 = bv.VARX[['k']]
+        s = bv.VARX[['s']]
+        # TODO contemp VARX
+        ## if --> VARX$contemp
+        contemp = False
+        s1 = 0
+
+        m = bv.Y.shape[1] - k1 # k - k1
+        Y1 = np.matrix(bv.Y[:,0:k1])
+        # TODO complete VARX estimation
+    else: # VAR estimation
+        contemp = False
+        if bv.struct == 'Lag' or bv.struct == 'SparseLag':
+            jj  = groupFun(bv.p, bv.Y.shape[1])
+        else:
+            jj = lFunction3(bv.p, bv.Y.shape[1])
+        Z1 = VARXCons(bv.Y, np.matrix(np.zeros(shape=bv.Y.shape)), bv.Y.shape[1], bv.p, 0, 0)
+        trainZ = Z1[1:Z1.shape[0],]
+        #trainY = np.matrix(bv.Y[bv.p:bv.Y.shape[0])
+
+
+
+
+
